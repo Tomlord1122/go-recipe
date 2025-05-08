@@ -8,7 +8,7 @@ env:
 
 builds:
 - binary: "{{ .ProjectName }}"
-  main: ./go-recipe/cmd
+  main: ./cmd/go-recipe
   goos:
   - darwin
   - linux
