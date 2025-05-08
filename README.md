@@ -1,6 +1,6 @@
-# Tomlord Recipe - Command Manager
+# Go Recipe - Command Manager
 
-Tomlord Recipe is a modern Terminal User Interface (TUI) application for managing and executing shell commands. It allows you to organize commands into categories, add new commands, and execute them either in foreground or background mode.
+Go Recipe is a modern Terminal User Interface (TUI) application for managing and executing shell commands. It allows you to organize commands into categories, add new commands, and execute them either in foreground or background mode.
 
 ## Features
 
@@ -20,15 +20,15 @@ Tomlord Recipe is a modern Terminal User Interface (TUI) application for managin
 ### Install via go install
 
 ```bash
-go install github.com/Tomlord1122/tom-recipe/cmd/go-recipe@latest
+go install github.com/Tomlord1122/go-recipe/cmd/go-recipe@latest
 ```
 
 ### Building from source
 
 ```bash
 # Clone the repository
-git clone https://github.com/Tomlord1122/tom-recipe.git
-cd tomlord-recipe
+git clone https://github.com/Tomlord1122/go-recipe.git
+cd go-recipe
 
 # Build the application
 make build
