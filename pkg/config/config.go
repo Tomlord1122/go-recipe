@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	configDir  = ".tomlord-recipe"
+	configDir  = ".go-recipe"
 	configFile = "commands.json"
 )
 

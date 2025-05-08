@@ -88,7 +88,7 @@ func renderMain(m model.Model) string {
 	var sb strings.Builder
 
 	// Render title
-	sb.WriteString(titleStyle.Render("tomlord-recipe - command manager"))
+	sb.WriteString(titleStyle.Render("go-recipe - command manager"))
 	sb.WriteString("\n\n")
 
 	// Render categories

@@ -62,7 +62,7 @@ func initializeModel() (model.Model, error) {
 
 // CLI command structure
 var rootCmd = &cobra.Command{
-	Use:   "tomlord-recipe",
+	Use:   "go-recipe",
 	Short: "A TUI application for executing commands",
 	Long:  `A Terminal User Interface (TUI) application built with Cobra, Bubble Tea, and Lip Gloss.`,
 	Run: func(cmd *cobra.Command, args []string) {
@@ -92,7 +92,7 @@ var versionCmd = &cobra.Command{
 	Use:   "version",
 	Short: "Show version information",
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Printf("tomlord-recipe version %s\n", version)
+		fmt.Printf("go-recipe version %s\n", version)
 		fmt.Printf("commit: %s\n", commit)
 		fmt.Printf("build date: %s\n", date)
 	},
