@@ -17,32 +17,31 @@ Tomlord Recipe is a modern Terminal User Interface (TUI) application for managin
 
 - Go 1.18 or higher
 
+### Install via go install
+
+```bash
+go install github.com/Tomlord1122/tom-recipe/cmd/go-recipe@latest
+```
+
 ### Building from source
 
 ```bash
 # Clone the repository
-git clone https://github.com/Tomlord1122/tomlord-recipe.git
+git clone https://github.com/Tomlord1122/tom-recipe.git
 cd tomlord-recipe
 
 # Build the application
-go build -o tomlord-recipe
-
-# Install to your PATH (optional)
-go install
+make build
 ```
+
 
 ## Usage
 
 Run the application:
 
 ```bash
-./tomlord-recipe
-```
-
-With background execution mode:
-
-```bash
-./tomlord-recipe -b
+cd build
+./go-recipe
 ```
 
 ### Keyboard Shortcuts

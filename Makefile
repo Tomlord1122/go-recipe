@@ -1,5 +1,5 @@
 # Binary name
-BINARY_NAME=tomlord-recipe
+BINARY_NAME=go-recipe
 
 # Build directory
 BUILD_DIR=build
