@@ -8,7 +8,7 @@ env:
 
 builds:
 - binary: "{{ .ProjectName }}"
-  main: ./cmd/tom-recipe
+  main: ./cmd
   goos:
   - darwin
   - linux
