@@ -13,7 +13,7 @@ GOGET=$(GOCMD) get
 GOMOD=$(GOCMD) mod
 
 # Main entry point
-MAIN_PKG=./cmd
+MAIN_PKG=./cmd/go-recipe
 
 # Version information from git
 VERSION=$(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")

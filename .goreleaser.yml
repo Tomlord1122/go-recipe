@@ -4,11 +4,11 @@ before:
   - go mod tidy
 
 env:
-  - PACKAGE_PATH=github.com/Tomlord1122/tom-recipe/cmd
+  - PACKAGE_PATH=github.com/Tomlord1122/tom-recipe/cmd/go-recipe
 
 builds:
 - binary: "{{ .ProjectName }}"
-  main: ./cmd
+  main: ./go-recipe/cmd
   goos:
   - darwin
   - linux
