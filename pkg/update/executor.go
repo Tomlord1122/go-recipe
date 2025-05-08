@@ -41,17 +41,17 @@ func ExecuteCommand(command model.Command) Result {
 	// Create command
 	cmd := exec.Command(cmdParts[0], cmdParts[1:]...)
 
-	homeDir, err := os.UserHomeDir()
-	if err == nil {
-		cmd.Dir = homeDir
-	}
-
 	// Capture output
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 
 	// Run the command
+	homeDir, err := os.UserHomeDir()
+	if err == nil {
+		cmd.Dir = homeDir
+	}
+	fmt.Println(cmd.Dir)
 	err = cmd.Run()
 
 	// Calculate exit code
