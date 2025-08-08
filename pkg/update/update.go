@@ -20,6 +20,7 @@ type (
 	ExecuteCommandMsg struct{ Command model.Command }
 	CommandResultMsg  struct{ Result Result }
 	StreamPollMsg     struct{}
+	SpinnerTickMsg    struct{}
 )
 
 // Update handles state transitions based on messages
@@ -40,6 +41,12 @@ func Update(msg tea.Msg, m model.Model) (model.Model, tea.Cmd) {
 		return handleCommandResult(msg.Result, m)
 	case StreamPollMsg:
 		return handleStreamPoll(m)
+	case SpinnerTickMsg:
+		if m.Executing {
+			m.ExecutingAnimIndex = (m.ExecutingAnimIndex + 1) % 4
+			return m, tea.Tick(120*time.Millisecond, func(time.Time) tea.Msg { return SpinnerTickMsg{} })
+		}
+		return m, nil
 	}
 
 	return m, nil
@@ -437,7 +444,7 @@ func executeCommand(command model.Command, m model.Model) (model.Model, tea.Cmd)
 	// Mark as executing
 	m.Executing = true
 	m.ExecutingCommand = &command
-	m.ExecutionOutput = "Executing command..."
+	m.ExecutionOutput = ""
 	m.OutputScrollPosition = 0 // Reset scroll position when starting a new command
 	m.Error = ""
 
@@ -528,6 +535,8 @@ func executeCommand(command model.Command, m model.Model) (model.Model, tea.Cmd)
 	tmpFile.Close()
 	m.ExecutionLogPath = tmpPath
 	m.ExecutionLogOffset = 0
+	m.Spinning = true
+	m.StreamedOutput = ""
 
 	// Command runner returns result when finished
 	runCmd := func() tea.Msg {
@@ -552,7 +561,8 @@ func executeCommand(command model.Command, m model.Model) (model.Model, tea.Cmd)
 
 	// Start polling ticks
 	poll := tea.Tick(200*time.Millisecond, func(time.Time) tea.Msg { return StreamPollMsg{} })
-	return m, tea.Batch(runCmd, poll)
+	spin := tea.Tick(120*time.Millisecond, func(time.Time) tea.Msg { return SpinnerTickMsg{} })
+	return m, tea.Batch(runCmd, poll, spin)
 }
 
 // handleCommandResult processes the result of a command execution
@@ -562,6 +572,9 @@ func handleCommandResult(result Result, m model.Model) (model.Model, tea.Cmd) {
 		content, _ := os.ReadFile(m.ExecutionLogPath)
 		result.Output = string(content)
 	}
+	// Stop spinner and show final output
+	m.Spinning = false
+	m.StreamedOutput = result.Output
 	m.ExecutionOutput = FormatOutput(result)
 	// Keep the execution view open so the user can read/scroll the output
 	// Stop polling by clearing the log path and offset; leave Executing true
@@ -671,8 +684,15 @@ func handleStreamPoll(m model.Model) (model.Model, tea.Cmd) {
 	buf := make([]byte, 64*1024)
 	n, _ := f.Read(buf)
 	if n > 0 {
-		m.ExecutionOutput += string(buf[:n])
+		m.StreamedOutput += string(buf[:n])
 		m.ExecutionLogOffset += int64(n)
+	}
+	// Update ExecutionOutput with spinner + streamed content
+	frame := []string{"-", "\\", "|", "/"}[m.ExecutingAnimIndex%4]
+	if m.Spinning {
+		m.ExecutionOutput = fmt.Sprintf("%s\n%s", fmt.Sprintf("%s Executing...", frame), m.StreamedOutput)
+	} else {
+		m.ExecutionOutput = m.StreamedOutput
 	}
 	// keep polling
 	return m, tea.Tick(200*time.Millisecond, func(time.Time) tea.Msg { return StreamPollMsg{} })

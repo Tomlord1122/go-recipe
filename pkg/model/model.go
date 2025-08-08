@@ -67,6 +67,9 @@ type Model struct {
 	ExecutionLogPath     string   // Temp log file path for streaming
 	ExecutionLogOffset   int64    // Read offset for streaming
 	ExecutionCancel      func()   // Cancel function to stop running process
+	ExecutingAnimIndex   int      // Spinner frame index while streaming
+	Spinning             bool     // Whether to show spinner in ExecutionOutput
+	StreamedOutput       string   // Aggregated output read so far (without spinner)
 
 	// Form state for adding/editing commands
 	FormCommand      Command   // Command being edited in form
@@ -110,6 +113,9 @@ func NewModel(runInBackground bool) Model {
 		Error:                "",
 		Width:                80,
 		Height:               24,
+		ExecutingAnimIndex:   0,
+		Spinning:             false,
+		StreamedOutput:       "",
 	}
 }
 

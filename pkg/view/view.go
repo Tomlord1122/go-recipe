@@ -171,7 +171,7 @@ func renderExecution(m model.Model) string {
 	sb.WriteString(titleStyle.Render(fmt.Sprintf("Executing: %s", m.ExecutingCommand.Name)))
 	sb.WriteString("\n\n")
 
-	// Render command info
+	// Render command info with a simple spinner
 	sb.WriteString(subtitleStyle.Render(fmt.Sprintf("Command: %s", m.ExecutingCommand.Command)))
 	sb.WriteString("\n\n")
 
