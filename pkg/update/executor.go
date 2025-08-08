@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -114,6 +115,53 @@ func ExecuteCommand(command model.Command) Result {
 	}
 
 	return result
+}
+
+// ExecuteCommandStreaming runs a command and streams output to the provided writer.
+func ExecuteCommandStreaming(command model.Command, stream io.Writer) Result {
+	startTime := time.Now()
+
+	if strings.TrimSpace(command.Command) == "" {
+		return Result{Command: command, Error: fmt.Errorf("empty command"), StartTime: startTime, EndTime: time.Now(), ExitCode: -1}
+	}
+
+	var cmd *exec.Cmd
+	if command.UseShell {
+		shell := os.Getenv("SHELL")
+		if shell == "" {
+			shell = "bash"
+		}
+		cmd = exec.Command(shell, "-lc", command.Command)
+	} else {
+		parts := strings.Fields(command.Command)
+		if len(parts) == 0 {
+			return Result{Command: command, Error: fmt.Errorf("empty command"), StartTime: startTime, EndTime: time.Now(), ExitCode: -1}
+		}
+		cmd = exec.Command(parts[0], parts[1:]...)
+	}
+
+	if dir, derr := resolveWorkingDir(command); derr == nil && dir != "" {
+		cmd.Dir = dir
+	} else if derr != nil {
+		return Result{Command: command, Error: derr, StartTime: startTime, EndTime: time.Now(), ExitCode: -1}
+	}
+
+	// Attach streaming writer
+	cmd.Stdout = stream
+	cmd.Stderr = stream
+
+	err := cmd.Run()
+
+	exitCode := 0
+	if err != nil {
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			exitCode = exitErr.ExitCode()
+		} else {
+			exitCode = -1
+		}
+	}
+
+	return Result{Command: command, Output: "", Error: err, StartTime: startTime, EndTime: time.Now(), ExitCode: exitCode}
 }
 
 // resolveWorkingDir decides the working directory based on per-command settings.

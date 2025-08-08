@@ -18,7 +18,8 @@ type Command struct {
 	WorkingDirMode string // current|home|absolute (empty treated as current)
 	WorkingDirPath string // used when WorkingDirMode == "absolute"; supports ~, $HOME, ${cwd}
 	// Execution behavior
-	UseShell bool // when true, execute via shell (bash -lc on Unix; cmd /c on Windows)
+	UseShell    bool // when true, execute via shell (bash -lc on Unix; cmd /c on Windows)
+	Interactive bool // when true, run attached (for interactive/long-running commands)
 }
 
 // FormField represents a field in the add/edit form
@@ -30,6 +31,10 @@ const (
 	FieldCategory
 	FieldDescription
 	FieldTags
+	FieldWorkingDirMode
+	FieldWorkingDirPath
+	FieldUseShell
+	FieldInteractive
 	FieldCount // Total number of fields
 )
 
@@ -59,6 +64,8 @@ type Model struct {
 	ExecutionOutput      string   // Output of the last executed command
 	ExecutingCommand     *Command // Currently executing command
 	OutputScrollPosition int      // Scroll position for command output
+	ExecutionLogPath     string   // Temp log file path for streaming
+	ExecutionLogOffset   int64    // Read offset for streaming
 
 	// Form state for adding/editing commands
 	FormCommand      Command   // Command being edited in form
@@ -126,6 +133,20 @@ func (m *Model) GetFormFieldValue(field FormField) string {
 			result += tag
 		}
 		return result
+	case FieldWorkingDirMode:
+		return m.FormCommand.WorkingDirMode
+	case FieldWorkingDirPath:
+		return m.FormCommand.WorkingDirPath
+	case FieldUseShell:
+		if m.FormCommand.UseShell {
+			return "true"
+		}
+		return "false"
+	case FieldInteractive:
+		if m.FormCommand.Interactive {
+			return "true"
+		}
+		return "false"
 	default:
 		return ""
 	}
@@ -155,5 +176,15 @@ func (m *Model) SetFormFieldValue(field FormField, value string) {
 			}
 			m.FormCommand.Tags = tags
 		}
+	case FieldWorkingDirMode:
+		m.FormCommand.WorkingDirMode = value
+	case FieldWorkingDirPath:
+		m.FormCommand.WorkingDirPath = value
+	case FieldUseShell:
+		lv := strings.ToLower(strings.TrimSpace(value))
+		m.FormCommand.UseShell = lv == "true" || lv == "1" || lv == "yes" || lv == "y"
+	case FieldInteractive:
+		lv := strings.ToLower(strings.TrimSpace(value))
+		m.FormCommand.Interactive = lv == "true" || lv == "1" || lv == "yes" || lv == "y"
 	}
 }

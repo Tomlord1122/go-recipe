@@ -358,6 +358,10 @@ func renderForm(m model.Model) string {
 		{"Category", model.FieldCategory, "Category for organization (e.g., System, Network)"},
 		{"Description", model.FieldDescription, "Brief description of what the command does"},
 		{"Tags", model.FieldTags, "Comma-separated tags for filtering"},
+		{"WorkingDirMode", model.FieldWorkingDirMode, "current|home|absolute"},
+		{"WorkingDirPath", model.FieldWorkingDirPath, "Used when mode is absolute; supports ~, $HOME, ${cwd}"},
+		{"UseShell", model.FieldUseShell, "true/false – run via shell to support pipes and quotes"},
+		{"Interactive", model.FieldInteractive, "true/false – run attached (e.g., htop, ssh)"},
 	}
 
 	for _, fieldInfo := range formFields {

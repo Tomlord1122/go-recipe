@@ -2,6 +2,11 @@ package update
 
 import (
 	"fmt"
+	"io"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -15,6 +20,7 @@ type (
 	ErrorMsg          struct{ Error error }
 	ExecuteCommandMsg struct{ Command model.Command }
 	CommandResultMsg  struct{ Result Result }
+	StreamPollMsg     struct{}
 )
 
 // Update handles state transitions based on messages
@@ -33,6 +39,8 @@ func Update(msg tea.Msg, m model.Model) (model.Model, tea.Cmd) {
 		return executeCommand(msg.Command, m)
 	case CommandResultMsg:
 		return handleCommandResult(msg.Result, m)
+	case StreamPollMsg:
+		return handleStreamPoll(m)
 	}
 
 	return m, nil
@@ -417,21 +425,66 @@ func executeCommand(command model.Command, m model.Model) (model.Model, tea.Cmd)
 	m.ExecutingCommand = &command
 	m.ExecutionOutput = "Executing command..."
 	m.OutputScrollPosition = 0 // Reset scroll position when starting a new command
+	m.Error = ""
 
 	// If background mode is enabled, skip the execution
 	if m.RunInBackground {
-		go func() {
-			_ = ExecuteCommand(command)
-		}()
+		// create logs dir and file
+		logPath, err := createBackgroundLogFile(command)
+		if err != nil {
+			m.Error = fmt.Sprintf("Failed to create background log: %v", err)
+			m.Executing = false
+			m.ExecutingCommand = nil
+			m.ExecutionOutput = ""
+			return m, nil
+		}
+		go func(p string) {
+			f, ferr := os.OpenFile(p, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+			if ferr != nil {
+				return
+			}
+			defer f.Close()
+			_ = ExecuteCommandStreaming(command, f)
+		}(logPath)
+		// show info message
+		// Use Error field for now to surface message in UI if Info is not present
+		m.Error = fmt.Sprintf("Background task started. Log: %s", logPath)
 		m.Executing = false
 		m.ExecutingCommand = nil
 		m.ExecutionOutput = ""
 		return m, nil
 	}
 
-	// Execute command in foreground
-	return m, func() tea.Msg {
-		result := ExecuteCommand(command)
+	// Interactive command on macOS: open Terminal and return immediately
+	if command.Interactive && isDarwin() {
+		_ = openInTerminal(command)
+		m.Executing = false
+		m.ExecutingCommand = nil
+		m.ExecutionOutput = ""
+		return m, nil
+	}
+
+	// Foreground: start streaming to a temp file and poll
+	tmpFile, err := os.CreateTemp("", "go-recipe-stream-*.log")
+	if err != nil {
+		m.Error = fmt.Sprintf("Failed to create temp log: %v", err)
+		m.Executing = false
+		m.ExecutingCommand = nil
+		return m, nil
+	}
+	tmpPath := tmpFile.Name()
+	tmpFile.Close()
+	m.ExecutionLogPath = tmpPath
+	m.ExecutionLogOffset = 0
+
+	// Command runner returns result when finished
+	runCmd := func() tea.Msg {
+		f, ferr := os.OpenFile(tmpPath, os.O_WRONLY|os.O_APPEND, 0644)
+		if ferr != nil {
+			return CommandResultMsg{Result: Result{Command: command, Error: ferr, StartTime: time.Now(), EndTime: time.Now(), ExitCode: -1}}
+		}
+		defer f.Close()
+		res := ExecuteCommandStreaming(command, f)
 
 		// Update command's last run time
 		for i, cmd := range m.AllCommands {
@@ -440,17 +493,28 @@ func executeCommand(command model.Command, m model.Model) (model.Model, tea.Cmd)
 				break
 			}
 		}
-
-		// Save configuration
 		_ = config.SaveConfig(m.AllCommands)
 
-		return CommandResultMsg{Result: result}
+		return CommandResultMsg{Result: res}
 	}
+
+	// Start polling ticks
+	poll := tea.Tick(200*time.Millisecond, func(time.Time) tea.Msg { return StreamPollMsg{} })
+	return m, tea.Batch(runCmd, poll)
 }
 
 // handleCommandResult processes the result of a command execution
 func handleCommandResult(result Result, m model.Model) (model.Model, tea.Cmd) {
+	// If we were streaming to a file, read it and compose final output
+	if m.ExecutionLogPath != "" {
+		content, _ := os.ReadFile(m.ExecutionLogPath)
+		result.Output = string(content)
+	}
 	m.ExecutionOutput = FormatOutput(result)
+	m.Executing = false
+	m.ExecutingCommand = nil
+	m.ExecutionLogPath = ""
+	m.ExecutionLogOffset = 0
 	return m, nil
 }
 
@@ -536,4 +600,78 @@ func handleFilterInputMode(msg tea.KeyMsg, m model.Model) (model.Model, tea.Cmd)
 	}
 
 	return m, nil
+}
+
+// handleStreamPoll reads new bytes from the temp log and appends to output while executing
+func handleStreamPoll(m model.Model) (model.Model, tea.Cmd) {
+	if !m.Executing || m.ExecutionLogPath == "" {
+		return m, nil
+	}
+	f, err := os.Open(m.ExecutionLogPath)
+	if err != nil {
+		return m, tea.Tick(200*time.Millisecond, func(time.Time) tea.Msg { return StreamPollMsg{} })
+	}
+	defer f.Close()
+	// Seek to last offset
+	if m.ExecutionLogOffset > 0 {
+		_, _ = f.Seek(m.ExecutionLogOffset, io.SeekStart)
+	}
+	buf := make([]byte, 64*1024)
+	n, _ := f.Read(buf)
+	if n > 0 {
+		m.ExecutionOutput += string(buf[:n])
+		m.ExecutionLogOffset += int64(n)
+	}
+	// keep polling
+	return m, tea.Tick(200*time.Millisecond, func(time.Time) tea.Msg { return StreamPollMsg{} })
+}
+
+// createBackgroundLogFile prepares a log file for background execution output
+func createBackgroundLogFile(cmd model.Command) (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+	dir := filepath.Join(home, ".go-recipe", "logs")
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return "", err
+	}
+	ts := time.Now().Format("20060102-150405")
+	safeName := strings.ReplaceAll(cmd.Name, " ", "_")
+	path := filepath.Join(dir, fmt.Sprintf("%s-%s.log", safeName, ts))
+	f, err := os.Create(path)
+	if err != nil {
+		return "", err
+	}
+	f.Close()
+	return path, nil
+}
+
+// isDarwin returns true if running on macOS
+func isDarwin() bool {
+	goos := runtime.GOOS
+	if override := os.Getenv("GOOS_OVERRIDE"); override != "" {
+		goos = override
+	}
+	return strings.ToLower(goos) == "darwin"
+}
+
+// openInTerminal opens a new Terminal window on macOS to run the command
+func openInTerminal(cmd model.Command) error {
+	// Build command string with working dir change if needed
+	workDir := ""
+	if dir, err := resolveWorkingDir(cmd); err == nil && dir != "" {
+		workDir = dir
+	}
+	body := cmd.Command
+	if cmd.UseShell {
+		// leave as-is; Terminal will use login shell
+	}
+	if workDir != "" {
+		body = fmt.Sprintf("cd %q; %s", workDir, body)
+	}
+	// Use AppleScript via osascript
+	script := fmt.Sprintf("tell application \"Terminal\" to do script \"%s\"", strings.ReplaceAll(body, "\"", "\\\""))
+	execCmd := exec.Command("osascript", "-e", script)
+	return execCmd.Run()
 }

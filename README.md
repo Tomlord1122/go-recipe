@@ -79,6 +79,21 @@ The application stores your commands in JSON format at:
 ~/.go-recipe/commands.json
 ```
 
+### Per-command settings
+
+- WorkingDirMode: `current` (default) | `home` | `absolute`
+- WorkingDirPath: used when mode is `absolute`; supports `~`, `$HOME`, `${cwd}`
+- UseShell: when true, the command runs via your shell (e.g., `bash -lc`), so pipes/quotes work
+- Interactive: when true, interactive commands (e.g., `htop`, `ssh`) will open attached (on macOS a new Terminal window)
+
+### Background runs
+
+- If background mode is enabled (toggle with `b`), output is written to logs under:
+
+```
+~/.go-recipe/logs/
+```
+
 ## License
 
 MIT License
