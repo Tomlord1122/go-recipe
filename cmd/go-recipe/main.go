@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/Tomlord1122/tom-recipe/pkg/config"
-	"github.com/Tomlord1122/tom-recipe/pkg/model"
-	"github.com/Tomlord1122/tom-recipe/pkg/update"
-	"github.com/Tomlord1122/tom-recipe/pkg/view"
+	"github.com/Tomlord1122/go-recipe/pkg/config"
+	"github.com/Tomlord1122/go-recipe/pkg/model"
+	"github.com/Tomlord1122/go-recipe/pkg/update"
+	"github.com/Tomlord1122/go-recipe/pkg/view"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"
 )
@@ -28,7 +28,7 @@ type Application struct {
 }
 
 func (a Application) Init() tea.Cmd {
-	return tea.SetWindowTitle("tom-recipe")
+	return tea.SetWindowTitle("go-recipe")
 }
 
 func (a Application) Update(msg tea.Msg) (tea.Model, tea.Cmd) {

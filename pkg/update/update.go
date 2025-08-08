@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Tomlord1122/tom-recipe/pkg/config"
-	"github.com/Tomlord1122/tom-recipe/pkg/model"
+	"github.com/Tomlord1122/go-recipe/pkg/config"
+	"github.com/Tomlord1122/go-recipe/pkg/model"
 	tea "github.com/charmbracelet/bubbletea"
 )
 

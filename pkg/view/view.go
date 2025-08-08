@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/Tomlord1122/tom-recipe/pkg/model"
+	"github.com/Tomlord1122/go-recipe/pkg/model"
 	"github.com/charmbracelet/lipgloss"
 )
 

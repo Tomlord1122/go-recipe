@@ -1,4 +1,4 @@
-module github.com/Tomlord1122/tom-recipe
+module github.com/Tomlord1122/go-recipe
 
 go 1.24.2
 

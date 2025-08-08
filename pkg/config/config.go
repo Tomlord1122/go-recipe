@@ -8,7 +8,7 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/Tomlord1122/tom-recipe/pkg/model"
+	"github.com/Tomlord1122/go-recipe/pkg/model"
 )
 
 const (

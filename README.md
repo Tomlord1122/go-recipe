@@ -94,7 +94,46 @@ The application stores your commands in JSON format at:
 ~/.go-recipe/logs/
 ```
 
+## Releasing
+
+Cutting a new release is automated via GitHub Actions and GoReleaser.
+
+1. Ensure tests are green:
+   ```bash
+    make test
+   ```
+2. Choose a new semver tag, e.g. `v1.2.3`.
+3. Tag and push:
+   ```bash
+    git checkout master
+    git pull
+    git tag -a v1.2.3 -m "Release v1.2.3"
+    git push origin v1.2.3
+   ```
+4. The CI workflow (triggered by tags `v*.*.*`) runs GoReleaser and publishes cross-platform binaries and checksums on the GitHub Releases page.
+
+### Installing a specific version
+
+- Via `go install`:
+  ```bash
+    go install github.com/Tomlord1122/go-recipe/cmd/go-recipe@v1.2.0
+  ```
+
+- Or download a prebuilt binary from the Releases page, extract it, and run:
+  ```bash
+    ./go-recipe version
+  ```
+
+### Verifying downloads
+
+Each release includes `checksums.txt`. To verify:
+```bash
+shasum -a 256 -c checksums.txt
+```
+
 ## License
 
 MIT License
+
+
 
