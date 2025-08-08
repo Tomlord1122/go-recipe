@@ -3,7 +3,7 @@
 /bin/
 
 /vendor/
-
+todo.md
 .idea/
 .vscode/
 *.swp

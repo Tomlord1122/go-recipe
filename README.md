@@ -76,7 +76,7 @@ The application follows the Model-View-Update (MVU) architecture pattern:
 The application stores your commands in JSON format at:
 
 ```
-~/.tomlord-recipe/commands.json
+~/.go-recipe/commands.json
 ```
 
 ## License

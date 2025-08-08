@@ -14,6 +14,11 @@ type Command struct {
 	Description string    // Description of what the command does
 	Tags        []string  // Tags for filtering
 	LastRun     time.Time // When the command was last executed
+	// Working directory behavior
+	WorkingDirMode string // current|home|absolute (empty treated as current)
+	WorkingDirPath string // used when WorkingDirMode == "absolute"; supports ~, $HOME, ${cwd}
+	// Execution behavior
+	UseShell bool // when true, execute via shell (bash -lc on Unix; cmd /c on Windows)
 }
 
 // FormField represents a field in the add/edit form
