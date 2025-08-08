@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/Tomlord1122/tom-recipe/pkg/model"
+	"github.com/creack/pty"
 )
 
 // Result represents the outcome of an executed command
@@ -126,7 +127,8 @@ func ExecuteCommandStreaming(command model.Command, stream io.Writer) Result {
 	}
 
 	var cmd *exec.Cmd
-	if command.UseShell {
+	if command.UseShell || command.Interactive {
+		// For interactive commands, prefer running via shell to preserve environment
 		shell := os.Getenv("SHELL")
 		if shell == "" {
 			shell = "bash"
@@ -162,6 +164,117 @@ func ExecuteCommandStreaming(command model.Command, stream io.Writer) Result {
 	}
 
 	return Result{Command: command, Output: "", Error: err, StartTime: startTime, EndTime: time.Now(), ExitCode: exitCode}
+}
+
+// ExecuteCommandInteractiveAttached runs an interactive command attached to the current TTY.
+// Stdout/Stderr/Stdin are bound to the parent process so full-screen TUIs (e.g., htop) work
+// in the same terminal session.
+func ExecuteCommandInteractiveAttached(command model.Command) Result {
+	startTime := time.Now()
+	if strings.TrimSpace(command.Command) == "" {
+		return Result{Command: command, Error: fmt.Errorf("empty command"), StartTime: startTime, EndTime: time.Now(), ExitCode: -1}
+	}
+
+	var cmd *exec.Cmd
+	if command.UseShell || command.Interactive {
+		shell := os.Getenv("SHELL")
+		if shell == "" {
+			shell = "bash"
+		}
+		cmd = exec.Command(shell, "-lc", command.Command)
+	} else {
+		parts := strings.Fields(command.Command)
+		if len(parts) == 0 {
+			return Result{Command: command, Error: fmt.Errorf("empty command"), StartTime: startTime, EndTime: time.Now(), ExitCode: -1}
+		}
+		cmd = exec.Command(parts[0], parts[1:]...)
+	}
+
+	if dir, derr := resolveWorkingDir(command); derr == nil && dir != "" {
+		cmd.Dir = dir
+	} else if derr != nil {
+		return Result{Command: command, Error: derr, StartTime: startTime, EndTime: time.Now(), ExitCode: -1}
+	}
+
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	err := cmd.Run()
+
+	exitCode := 0
+	if err != nil {
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			exitCode = exitErr.ExitCode()
+		} else {
+			exitCode = -1
+		}
+	}
+
+	return Result{Command: command, Output: "", Error: err, StartTime: startTime, EndTime: time.Now(), ExitCode: exitCode}
+}
+
+// StartInteractiveProcess starts a long-running process and returns the *exec.Cmd so caller can manage lifecycle.
+// Stdout/Stderr are streamed to the provided writer.
+func StartInteractiveProcess(command model.Command, stream io.Writer) (*exec.Cmd, error) {
+	var cmd *exec.Cmd
+	if command.UseShell || command.Interactive {
+		shell := os.Getenv("SHELL")
+		if shell == "" {
+			shell = "bash"
+		}
+		cmd = exec.Command(shell, "-lc", command.Command)
+	} else {
+		parts := strings.Fields(command.Command)
+		if len(parts) == 0 {
+			return nil, fmt.Errorf("empty command")
+		}
+		cmd = exec.Command(parts[0], parts[1:]...)
+	}
+	if dir, derr := resolveWorkingDir(command); derr == nil && dir != "" {
+		cmd.Dir = dir
+	} else if derr != nil {
+		return nil, derr
+	}
+	cmd.Stdout = stream
+	cmd.Stderr = stream
+	// do not bind Stdin so we keep control; many tools exit on 'q' printed to stdout is not correct
+	if err := cmd.Start(); err != nil {
+		return nil, err
+	}
+	return cmd, nil
+}
+
+// StartInteractivePTY starts the command attached to a PTY so full-screen TUIs can render.
+// The PTY output is continuously copied to the provided stream until the process exits or the PTY is closed.
+func StartInteractivePTY(command model.Command, stream io.Writer) (*exec.Cmd, *os.File, error) {
+	var cmd *exec.Cmd
+	if command.UseShell || command.Interactive {
+		shell := os.Getenv("SHELL")
+		if shell == "" {
+			shell = "bash"
+		}
+		cmd = exec.Command(shell, "-lc", command.Command)
+	} else {
+		parts := strings.Fields(command.Command)
+		if len(parts) == 0 {
+			return nil, nil, fmt.Errorf("empty command")
+		}
+		cmd = exec.Command(parts[0], parts[1:]...)
+	}
+	if dir, derr := resolveWorkingDir(command); derr == nil && dir != "" {
+		cmd.Dir = dir
+	} else if derr != nil {
+		return nil, nil, derr
+	}
+	ptmx, err := pty.Start(cmd)
+	if err != nil {
+		return nil, nil, err
+	}
+	go func() {
+		_, _ = io.Copy(stream, ptmx)
+	}()
+	return cmd, ptmx, nil
 }
 
 // resolveWorkingDir decides the working directory based on per-command settings.

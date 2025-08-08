@@ -6,7 +6,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"time"
 
@@ -107,6 +106,16 @@ func handleMainKeyPress(msg tea.KeyMsg, m model.Model) (model.Model, tea.Cmd) {
 				return ExecuteCommandMsg{Command: m.VisibleCommands[m.SelectedIndex]}
 			}
 		}
+	case "E":
+		// Quick edit mode: open form focused on command field for the selected command
+		if len(m.VisibleCommands) > 0 && m.SelectedIndex < len(m.VisibleCommands) {
+			m.ShowForm = true
+			m.FormCommand = m.VisibleCommands[m.SelectedIndex]
+			m.ActiveFormField = model.FieldCommand
+			m.EditingFormField = true
+			m.FormInputBuffer = m.FormCommand.Command
+			return m, nil
+		}
 	case "n":
 		// Start adding a new command
 		m.ShowForm = true
@@ -201,9 +210,14 @@ func handleExecutionKeyPress(msg tea.KeyMsg, m model.Model) (model.Model, tea.Cm
 
 	switch msg.String() {
 	case "esc", "q", "enter":
+		if m.ExecutionCancel != nil {
+			m.ExecutionCancel()
+		}
 		m.Executing = false
 		m.ExecutingCommand = nil
 		m.OutputScrollPosition = 0 // Reset scroll position when exiting
+		m.ExecutionLogPath = ""
+		m.ExecutionLogOffset = 0
 	case "up", "k":
 		// Scroll up one line
 		if m.OutputScrollPosition > 0 {
@@ -427,7 +441,54 @@ func executeCommand(command model.Command, m model.Model) (model.Model, tea.Cmd)
 	m.OutputScrollPosition = 0 // Reset scroll position when starting a new command
 	m.Error = ""
 
-	// If background mode is enabled, skip the execution
+	// Interactive commands: suspend TUI and hand over TTY to the process; return when it exits
+	if command.Interactive {
+		// Build exec.Cmd to attach current TTY via ExecProcess
+		var cmd *exec.Cmd
+		if command.UseShell || command.Interactive {
+			shell := os.Getenv("SHELL")
+			if shell == "" {
+				shell = "bash"
+			}
+			cmd = exec.Command(shell, "-lc", command.Command)
+		} else {
+			parts := strings.Fields(command.Command)
+			if len(parts) == 0 {
+				m.Error = "empty command"
+				m.Executing = false
+				m.ExecutingCommand = nil
+				return m, nil
+			}
+			cmd = exec.Command(parts[0], parts[1:]...)
+		}
+		if dir, derr := resolveWorkingDir(command); derr == nil && dir != "" {
+			cmd.Dir = dir
+		} else if derr != nil {
+			m.Error = fmt.Sprintf("Failed to resolve working dir: %v", derr)
+			m.Executing = false
+			m.ExecutingCommand = nil
+			return m, nil
+		}
+		cmd.Stdin = os.Stdin
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		m.Executing = false
+		m.ExecutingCommand = nil
+		started := time.Now()
+		return m, tea.ExecProcess(cmd, func(err error) tea.Msg {
+			exitCode := 0
+			if err != nil {
+				if ee, ok := err.(*exec.ExitError); ok {
+					exitCode = ee.ExitCode()
+				} else {
+					exitCode = -1
+				}
+			}
+			return CommandResultMsg{Result: Result{Command: command, Output: "", Error: err, StartTime: started, EndTime: time.Now(), ExitCode: exitCode}}
+		})
+	}
+
+	// If background mode is enabled (and not interactive), run in background
 	if m.RunInBackground {
 		// create logs dir and file
 		logPath, err := createBackgroundLogFile(command)
@@ -449,15 +510,6 @@ func executeCommand(command model.Command, m model.Model) (model.Model, tea.Cmd)
 		// show info message
 		// Use Error field for now to surface message in UI if Info is not present
 		m.Error = fmt.Sprintf("Background task started. Log: %s", logPath)
-		m.Executing = false
-		m.ExecutingCommand = nil
-		m.ExecutionOutput = ""
-		return m, nil
-	}
-
-	// Interactive command on macOS: open Terminal and return immediately
-	if command.Interactive && isDarwin() {
-		_ = openInTerminal(command)
 		m.Executing = false
 		m.ExecutingCommand = nil
 		m.ExecutionOutput = ""
@@ -511,8 +563,8 @@ func handleCommandResult(result Result, m model.Model) (model.Model, tea.Cmd) {
 		result.Output = string(content)
 	}
 	m.ExecutionOutput = FormatOutput(result)
-	m.Executing = false
-	m.ExecutingCommand = nil
+	// Keep the execution view open so the user can read/scroll the output
+	// Stop polling by clearing the log path and offset; leave Executing true
 	m.ExecutionLogPath = ""
 	m.ExecutionLogOffset = 0
 	return m, nil
@@ -645,33 +697,4 @@ func createBackgroundLogFile(cmd model.Command) (string, error) {
 	}
 	f.Close()
 	return path, nil
-}
-
-// isDarwin returns true if running on macOS
-func isDarwin() bool {
-	goos := runtime.GOOS
-	if override := os.Getenv("GOOS_OVERRIDE"); override != "" {
-		goos = override
-	}
-	return strings.ToLower(goos) == "darwin"
-}
-
-// openInTerminal opens a new Terminal window on macOS to run the command
-func openInTerminal(cmd model.Command) error {
-	// Build command string with working dir change if needed
-	workDir := ""
-	if dir, err := resolveWorkingDir(cmd); err == nil && dir != "" {
-		workDir = dir
-	}
-	body := cmd.Command
-	if cmd.UseShell {
-		// leave as-is; Terminal will use login shell
-	}
-	if workDir != "" {
-		body = fmt.Sprintf("cd %q; %s", workDir, body)
-	}
-	// Use AppleScript via osascript
-	script := fmt.Sprintf("tell application \"Terminal\" to do script \"%s\"", strings.ReplaceAll(body, "\"", "\\\""))
-	execCmd := exec.Command("osascript", "-e", script)
-	return execCmd.Run()
 }

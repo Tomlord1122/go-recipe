@@ -1,7 +1,7 @@
 
 /dist/
 /bin/
-
+.cursor/
 /vendor/
 todo.md
 .idea/

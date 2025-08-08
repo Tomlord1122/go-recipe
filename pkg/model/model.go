@@ -66,6 +66,7 @@ type Model struct {
 	OutputScrollPosition int      // Scroll position for command output
 	ExecutionLogPath     string   // Temp log file path for streaming
 	ExecutionLogOffset   int64    // Read offset for streaming
+	ExecutionCancel      func()   // Cancel function to stop running process
 
 	// Form state for adding/editing commands
 	FormCommand      Command   // Command being edited in form

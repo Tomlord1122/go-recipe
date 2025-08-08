@@ -422,6 +422,11 @@ func renderForm(m model.Model) string {
 		sb.WriteString(helpStyle.Render("↑/↓: Navigate Fields  |  Enter: Edit Field  |  Tab: Next Field  |  y: Save  |  Esc: Cancel"))
 		sb.WriteString("\n")
 		sb.WriteString(descriptionStyle.Render("Fill in the fields above to add your new command."))
+		// Additional hints for UseShell and Interactive
+		sb.WriteString("\n")
+		sb.WriteString(descriptionStyle.Render("UseShell: run via shell (bash -lc); needed for pipes (|), redirection (>, >>), &&, globbing, and quotes."))
+		sb.WriteString("\n")
+		sb.WriteString(descriptionStyle.Render("Interactive: for full-screen/interactive commands like htop/top/ssh/less/tail -f; stays attached until you exit."))
 	}
 
 	return sb.String()
